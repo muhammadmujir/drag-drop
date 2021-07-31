@@ -23,8 +23,8 @@ class MainActivity : AppCompatActivity() {
   )
   private var nextTableId: Int? = null
   private var selectedTable: Table? = null
-  private var actionEnded: Boolean = true
-  private var width: Int? = 0
+  private var gridLayoutWidth: Float = 0.0F
+  private var gridLayoutHeight: Float = 0.0F
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -36,18 +36,19 @@ class MainActivity : AppCompatActivity() {
   private fun initView(){
     with(viewBinding){
       setDragStarting(btnGrid, true)
+      setDragListener()
       gridLayout.viewTreeObserver.addOnGlobalLayoutListener {
-        width = gridLayout.width
+        gridLayoutWidth = gridLayout.width.toFloat()
+        gridLayoutHeight = gridLayout.height.toFloat()
       }
       btnDelete.setOnClickListener {
-        Toast.makeText(this@MainActivity, "width : "+ width,Toast.LENGTH_LONG).show()
         selectedTable?.let {
+          Toast.makeText(this@MainActivity, "Delete Table:$it",Toast.LENGTH_LONG).show()
           tables.remove(it)
           (gridLayout[convertXY(it.x!!,it.y!!)] as Button).run {
             text = ""
             setOnClickListener(null)
             setOnLongClickListener(null)
-            this@MainActivity.setDragListener(this, it.x, it.y)
             background = ContextCompat.getDrawable(this@MainActivity, android.R.color.white)
           }
           if (it.id!! < nextTableId!!){
@@ -56,8 +57,8 @@ class MainActivity : AppCompatActivity() {
           selectedTable = null
         }
       }
-      for (x in 0..2){
-        for (y in 0..1){
+      for (x in 0 until viewBinding.gridLayout.rowCount){
+        for (y in 0 until viewBinding.gridLayout.columnCount){
           val isTableAvailable = isTableAvailable(x,y)
           if (isTableAvailable.first){
             (gridLayout[convertXY(x,y)] as Button).run {
@@ -73,7 +74,6 @@ class MainActivity : AppCompatActivity() {
           } else {
             (gridLayout[convertXY(x,y)] as Button).run {
               text = ""
-              setDragListener(this, x, y)
               background = ContextCompat.getDrawable(this@MainActivity, android.R.color.white)
             }
           }
@@ -104,8 +104,8 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  private fun setDragListener(button: Button, x: Int, y: Int){
-    button.setOnDragListener { v, event ->
+  private fun setDragListener(){
+    viewBinding.gridLayout.setOnDragListener { v, event ->
       when (event.action) {
         DragEvent.ACTION_DRAG_STARTED -> {
           if (event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
@@ -132,33 +132,35 @@ class MainActivity : AppCompatActivity() {
           val dragIntent = item.intent
           val tableId = dragIntent.getStringExtra("tableId")
           val isNewTable = dragIntent.getBooleanExtra("isNewTable", false)
-          if (isNewTable){
-            tables.add(Table(dragIntent.getStringExtra("tableId")?.toInt(), x, y))
-            findNextTableId()
-            updateNextTableId(nextTableId!!)
-            (viewBinding.gridLayout[convertXY(x,y)] as Button).run {
-              text = tableId
-              background = ContextCompat.getDrawable(this@MainActivity, R.color.colorPrimary)
-              onTableClicked(this, tables[tables.size -1])
-              setOnDragListener(null)
-              setDragStarting(this, false)
-            }
-          } else {
-            val prevTable = tables[tables.indexOfFirst { it.id == tableId?.toInt() }]
-            (viewBinding.gridLayout[convertXY(prevTable.x!!, prevTable.y!!)] as Button).run {
-              text = ""
-              setOnClickListener(null)
-              setOnLongClickListener(null)
-              this@MainActivity.setDragListener(this, prevTable.x, prevTable.y)
-              background = ContextCompat.getDrawable(this@MainActivity, android.R.color.white)
-            }
-            tables[tables.indexOfFirst { it.id == tableId?.toInt() }] = Table(tableId?.toInt(), x, y)
-            (viewBinding.gridLayout[convertXY(x,y)] as Button).run {
-              text = tableId
-              onTableClicked(this, tables[tables.indexOfFirst { it.id == tableId?.toInt() }])
-              setOnDragListener(null)
-              setDragStarting(this, false)
-              background = ContextCompat.getDrawable(this@MainActivity, R.color.colorPrimary)
+          val point = xyScreenToXyGrid(event.x, event.y)
+          if ((viewBinding.gridLayout[convertXY(point.first, point.second)] as Button).text == ""){
+            if (isNewTable){
+              tables.add(Table(tableId?.toInt(), point.first, point.second))
+              findNextTableId()
+              updateNextTableId(nextTableId!!)
+              (viewBinding.gridLayout[convertXY(point.first,point.second)] as Button).run {
+                text = tableId
+                background = ContextCompat.getDrawable(this@MainActivity, R.color.colorPrimary)
+                onTableClicked(this, tables[tables.indexOfFirst { it.id == tableId?.toInt() }])
+                setOnDragListener(null)
+                setDragStarting(this, false)
+              }
+            } else {
+              val prevTable = tables[tables.indexOfFirst { it.id == tableId?.toInt() }]
+              (viewBinding.gridLayout[convertXY(prevTable.x!!, prevTable.y!!)] as Button).run {
+                text = ""
+                setOnClickListener(null)
+                setOnLongClickListener(null)
+                background = ContextCompat.getDrawable(this@MainActivity, android.R.color.white)
+              }
+              tables[tables.indexOfFirst { it.id == tableId?.toInt() }] = Table(tableId?.toInt(), point.first, point.second)
+              (viewBinding.gridLayout[convertXY(point.first,point.second)] as Button).run {
+                text = tableId
+                onTableClicked(this, tables[tables.indexOfFirst { it.id == tableId?.toInt() }])
+                setOnDragListener(null)
+                setDragStarting(this, false)
+                background = ContextCompat.getDrawable(this@MainActivity, R.color.colorPrimary)
+              }
             }
           }
 //          Toast.makeText(this, "Dragged data is " + tableId +" " +tables.toString(), Toast.LENGTH_LONG).show()
@@ -229,7 +231,7 @@ class MainActivity : AppCompatActivity() {
     if (x == 0){
       return y
     }
-    return (x*2) + y
+    return (x*viewBinding.gridLayout.columnCount) + y
   }
 
   private fun isTableAvailable(x: Int, y: Int): Pair<Boolean, Table?>{
@@ -240,4 +242,19 @@ class MainActivity : AppCompatActivity() {
     }
     return Pair(false, null)
   }
+
+  private fun xyScreenToXyGrid(width: Float, height: Float): Pair<Int, Int>{
+    val itemWidth = gridLayoutWidth / viewBinding.gridLayout.columnCount.toFloat()
+    val itemHeight = gridLayoutHeight / viewBinding.gridLayout.rowCount.toFloat()
+    var colAxis: Int = (width/itemWidth).toInt() - 1
+    var rowAxis: Int = (height/itemHeight).toInt() - 1
+    if ((width/itemWidth) - colAxis > 0){
+      colAxis++
+    }
+    if ((height/itemHeight) - rowAxis > 0){
+      rowAxis++
+    }
+    return Pair(rowAxis, colAxis)
+  }
+
 }
