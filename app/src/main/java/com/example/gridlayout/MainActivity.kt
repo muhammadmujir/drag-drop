@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.DragEvent
 import android.view.View
 import android.widget.Button
+import android.widget.GridLayout
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.get
@@ -57,26 +58,32 @@ class MainActivity : AppCompatActivity() {
           selectedTable = null
         }
       }
+      initGrid()
+      for (table in tables){
+        (gridLayout[convertXY(table.x!!,table.y!!)] as Button).run {
+          if (nextTableId == null || nextTableId!! >= table.id!!){
+            nextTableId = table.id?.plus(1)
+          }
+          updateNextTableId(nextTableId!!)
+          text = table.id.toString()
+          onTableClicked(this, table)
+          setDragStarting(this, false)
+          background = ContextCompat.getDrawable(this@MainActivity, R.color.colorPrimary)
+        }
+      }
+    }
+  }
+
+  private fun initGrid() {
+    with(viewBinding.gridLayout){
       for (x in 0 until viewBinding.gridLayout.rowCount){
         for (y in 0 until viewBinding.gridLayout.columnCount){
-          val isTableAvailable = isTableAvailable(x,y)
-          if (isTableAvailable.first){
-            (gridLayout[convertXY(x,y)] as Button).run {
-              if (nextTableId == null || nextTableId!! >= isTableAvailable.second?.id!!){
-                nextTableId = isTableAvailable.second?.id?.plus(1)
-              }
-              updateNextTableId(nextTableId!!)
-              text = isTableAvailable.second?.id.toString()
-              onTableClicked(this, isTableAvailable.second!!)
-              setDragStarting(this, false)
-              background = ContextCompat.getDrawable(this@MainActivity, R.color.colorPrimary)
-            }
-          } else {
-            (gridLayout[convertXY(x,y)] as Button).run {
-              text = ""
-              background = ContextCompat.getDrawable(this@MainActivity, android.R.color.white)
-            }
-          }
+          addView(Button(context).apply {
+            val param: androidx.gridlayout.widget.GridLayout.LayoutParams = androidx.gridlayout.widget.GridLayout.LayoutParams(androidx.gridlayout.widget.GridLayout.spec(GridLayout.UNDEFINED, 1f), androidx.gridlayout.widget.GridLayout.spec(GridLayout.UNDEFINED, 1f))
+            text = ""
+            layoutParams = param
+            background = ContextCompat.getDrawable(this@MainActivity, android.R.color.white)
+          })
         }
       }
     }
